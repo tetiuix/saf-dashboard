@@ -79,3 +79,45 @@ th, td {
   background: #17211b;
   color: white;
 }
+
+@media (max-width: 768px) {
+
+  .dashboard {
+    padding: 16px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+  }
+
+  .card h2 {
+    font-size: 28px;
+  }
+
+  .range-buttons {
+    flex-wrap: wrap;
+  }
+
+  .range-buttons button {
+    flex: 1;
+    min-width: 100px;
+  }
+
+  .chart-box {
+    padding: 12px;
+    overflow-x: auto;
+  }
+
+  table {
+    font-size: 12px;
+    min-width: 600px;
+  }
+
+  th, td {
+    padding: 8px;
+  }
+}
