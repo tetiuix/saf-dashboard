@@ -10,13 +10,59 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  Legend,
 } from "recharts";
+
+const ranges = [
+  ["15m", "15 min"],
+  ["1h", "1 ora"],
+  ["1d", "1 giorno"],
+  ["1w", "1 settimana"],
+];
+
+const metrics = [
+  {
+    key: "temperature",
+    label: "Temperatura",
+    unit: "°C",
+    color: "#ef4444",
+    ideal: [20, 25],
+    lowText: "Aumenta temperatura",
+    highText: "Abbassa temperatura",
+  },
+  {
+    key: "humidity",
+    label: "Umidità",
+    unit: "%",
+    color: "#3b82f6",
+    ideal: [50, 65],
+    lowText: "Aumenta umidità",
+    highText: "Abbassa umidità",
+  },
+  {
+    key: "vpd",
+    label: "VPD",
+    unit: "kPa",
+    color: "#22c55e",
+    ideal: [0.9, 1.4],
+    lowText: "VPD basso",
+    highText: "VPD alto",
+  },
+  {
+    key: "dew_point",
+    label: "Dew Point",
+    unit: "°C",
+    color: "#a855f7",
+    ideal: [12, 18],
+    lowText: "Punto rugiada basso",
+    highText: "Rischio condensa",
+  },
+];
 
 export default function App() {
   const [readings, setReadings] = useState([]);
   const [timeRange, setTimeRange] = useState("1h");
   const [loading, setLoading] = useState(true);
+  const [showLogs, setShowLogs] = useState(false);
 
   async function loadReadings(range = timeRange) {
     const fromDate = new Date();
@@ -55,20 +101,6 @@ export default function App() {
 
   const latest = readings[readings.length - 1];
 
-  const status = useMemo(() => {
-    if (!latest) return { label: "Offline", className: "danger" };
-
-    if (latest.vpd > 1.4 || latest.temperature > 28 || latest.humidity < 45) {
-      return { label: "Attenzione", className: "warning" };
-    }
-
-    if (latest.vpd >= 0.9 && latest.vpd <= 1.4) {
-      return { label: "Stabile", className: "good" };
-    }
-
-    return { label: "Fuori range", className: "warning" };
-  }, [latest]);
-
   const chartData = readings.map((row) => ({
     ...row,
     time: new Date(row.created_at).toLocaleTimeString("it-IT", {
@@ -77,55 +109,60 @@ export default function App() {
     }),
   }));
 
+  const globalStatus = useMemo(() => {
+    if (!latest) return { text: "Offline", className: "danger" };
+
+    const warnings = metrics.filter((m) => {
+      const value = Number(latest[m.key]);
+      return value < m.ideal[0] || value > m.ideal[1];
+    });
+
+    if (warnings.length === 0) return { text: "Stabile", className: "good" };
+    if (warnings.length <= 2) return { text: "Da regolare", className: "warning" };
+    return { text: "Critico", className: "danger" };
+  }, [latest]);
+
   return (
     <main className="dashboard">
       <header className="topbar">
         <div>
           <p className="eyebrow">SAF Climate System</p>
           <h1>Dashboard Growbox</h1>
-          <p className="subtitle">ESP32 + DHT22 + Supabase Cloud</p>
+          <p className="subtitle">ESP32 · DHT22 · Supabase Cloud</p>
         </div>
 
-        <div className={`status-pill ${status.className}`}>
-          <span></span>
-          {status.label}
+        <div className={`status-pill ${globalStatus.className}`}>
+          <span />
+          {globalStatus.text}
         </div>
       </header>
 
-      {loading && <p>Caricamento dati...</p>}
+      {loading && <p className="loading">Caricamento dati...</p>}
 
       {!loading && !latest && (
-        <section className="empty-state">
+        <section className="panel">
           <h2>Nessun dato ricevuto</h2>
-          <p>Controlla che ESP32 sia acceso e che Supabase riceva righe.</p>
+          <p>Controlla ESP32, WiFi e tabella Supabase.</p>
         </section>
       )}
 
       {latest && (
         <>
-          <section className="cards">
-            <MetricCard title="Temperatura" value={latest.temperature} unit="°C" />
-            <MetricCard title="Umidità" value={latest.humidity} unit="%" />
-            <MetricCard title="VPD" value={latest.vpd} unit="kPa" />
-            <MetricCard title="Dew Point" value={latest.dew_point} unit="°C" />
+          <section className="metric-grid">
+            {metrics.map((metric) => (
+              <MetricCard key={metric.key} metric={metric} latest={latest} />
+            ))}
           </section>
 
           <section className="panel">
             <div className="panel-header">
               <div>
                 <h2>Andamento climatico</h2>
-                <p>
-                  Intervallo: {timeRange} · Letture: {readings.length}
-                </p>
+                <p>Intervallo: {timeRange} · Letture: {readings.length}</p>
               </div>
 
               <div className="range-buttons">
-                {[
-                  ["15m", "15 min"],
-                  ["1h", "1 ora"],
-                  ["1d", "1 giorno"],
-                  ["1w", "1 settimana"],
-                ].map(([value, label]) => (
+                {ranges.map(([value, label]) => (
                   <button
                     key={value}
                     className={timeRange === value ? "active" : ""}
@@ -137,39 +174,37 @@ export default function App() {
               </div>
             </div>
 
-            <div className="chart-wrapper">
-              <ResponsiveContainer width="100%" height={340}>
-                <LineChart data={chartData} margin={{ top: 10, right: 16, left: -18, bottom: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="time" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="temperature" name="Temp °C" stroke="#ef4444" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="humidity" name="UR %" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="vpd" name="VPD" stroke="#22c55e" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="dew_point" name="Dew Point" stroke="#a855f7" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
+            <div className="single-charts">
+              {metrics.map((metric) => (
+                <MiniChart
+                  key={metric.key}
+                  metric={metric}
+                  chartData={chartData}
+                />
+              ))}
             </div>
           </section>
 
           <section className="panel">
-            <h2>Ultime letture</h2>
+            <button className="log-toggle" onClick={() => setShowLogs(!showLogs)}>
+              {showLogs ? "Nascondi log letture" : "Mostra log letture"}
+            </button>
 
-            <div className="reading-list">
-              {[...readings].reverse().slice(0, 12).map((row) => (
-                <article className="reading-card" key={row.id}>
-                  <strong>{new Date(row.created_at).toLocaleString("it-IT")}</strong>
-                  <div>
-                    <span>{row.temperature} °C</span>
-                    <span>{row.humidity} %</span>
-                    <span>{row.vpd} kPa</span>
-                    <span>{row.dew_point} °C</span>
-                  </div>
-                </article>
-              ))}
-            </div>
+            {showLogs && (
+              <div className="reading-list">
+                {[...readings].reverse().slice(0, 20).map((row) => (
+                  <article className="reading-card" key={row.id}>
+                    <strong>{new Date(row.created_at).toLocaleString("it-IT")}</strong>
+                    <div>
+                      <span>{row.temperature} °C</span>
+                      <span>{row.humidity} %</span>
+                      <span>{row.vpd} kPa</span>
+                      <span>{row.dew_point} °C</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         </>
       )}
@@ -177,13 +212,76 @@ export default function App() {
   );
 }
 
-function MetricCard({ title, value, unit }) {
+function MetricCard({ metric, latest }) {
+  const value = Number(latest[metric.key]);
+  const [min, max] = metric.ideal;
+
+  let state = "ok";
+  let message = "Valore ottimale";
+
+  if (value < min) {
+    state = "warning";
+    message = metric.lowText;
+  }
+
+  if (value > max) {
+    state = "danger";
+    message = metric.highText;
+  }
+
   return (
-    <article className="metric-card">
-      <p>{title}</p>
+    <article className={`metric-card ${state}`}>
+      <div className="metric-top">
+        <p>{metric.label}</p>
+        <span className="metric-dot" style={{ background: metric.color }} />
+      </div>
+
       <h2>
-        {value} <span>{unit}</span>
+        {value.toFixed(2)} <span>{metric.unit}</span>
       </h2>
+
+      <div className={`metric-action ${state}`}>
+        {message}
+      </div>
+
+      <small>
+        Range ideale: {min}–{max} {metric.unit}
+      </small>
+    </article>
+  );
+}
+
+function MiniChart({ metric, chartData }) {
+  return (
+    <article className="chart-card">
+      <div className="chart-title">
+        <h3>{metric.label}</h3>
+        <span style={{ color: metric.color }}>
+          {metric.unit}
+        </span>
+      </div>
+
+      <div className="chart-mobile-fix">
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 10, right: 12, left: -24, bottom: 0 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="time" tick={{ fontSize: 10 }} minTickGap={28} />
+            <YAxis tick={{ fontSize: 10 }} />
+            <Tooltip />
+            <Line
+              type="monotone"
+              dataKey={metric.key}
+              name={metric.label}
+              stroke={metric.color}
+              strokeWidth={2.5}
+              dot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </article>
   );
 }

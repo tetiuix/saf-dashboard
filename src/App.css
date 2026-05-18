@@ -5,12 +5,11 @@
 body {
   margin: 0;
   background: #eef3ef;
-  font-family: Arial, sans-serif;
   color: #17211b;
+  font-family: Arial, sans-serif;
 }
 
 .dashboard {
-  width: 100%;
   max-width: 1180px;
   margin: 0 auto;
   padding: 28px;
@@ -18,28 +17,31 @@ body {
 
 .topbar {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 24px;
 }
 
 .eyebrow {
   margin: 0;
-  font-size: 13px;
   color: #5f6f65;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 h1 {
   margin: 4px 0;
-  font-size: 38px;
+  font-size: 42px;
+  color: #17211b;
 }
 
 .subtitle {
   margin: 0;
-  color: #66736b;
+  color: #5f6f65;
+  font-size: 18px;
 }
 
 .status-pill {
@@ -47,14 +49,16 @@ h1 {
   align-items: center;
   gap: 8px;
   background: white;
+  color: #17211b;
   border-radius: 999px;
-  padding: 10px 14px;
-  font-weight: 700;
+  padding: 12px 18px;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
 }
 
 .status-pill span {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
 }
 
@@ -70,60 +74,116 @@ h1 {
   background: #ef4444;
 }
 
-.cards {
+.metric-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
-  margin-bottom: 18px;
 }
 
 .metric-card,
 .panel,
-.empty-state {
+.chart-card {
   background: white;
-  border-radius: 22px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+  border-radius: 24px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.07);
 }
 
 .metric-card {
-  padding: 20px;
+  padding: 22px;
+  min-height: 190px;
 }
 
-.metric-card p {
+.metric-card.ok {
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.metric-card.warning {
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.metric-card.danger {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.metric-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.metric-top p {
   margin: 0;
-  color: #66736b;
+  color: #5f6f65;
+  font-size: 17px;
+}
+
+.metric-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
 }
 
 .metric-card h2 {
-  margin: 10px 0 0;
-  font-size: 34px;
+  margin: 18px 0 14px;
+  color: #17211b;
+  font-size: 38px;
 }
 
-.metric-card span {
-  font-size: 16px;
+.metric-card h2 span {
+  color: #5f6f65;
+  font-size: 18px;
+}
+
+.metric-action {
+  display: inline-flex;
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.metric-action.ok {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.metric-action.warning {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.metric-action.danger {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.metric-card small {
+  display: block;
+  margin-top: 12px;
   color: #66736b;
 }
 
 .panel {
-  padding: 22px;
   margin-top: 18px;
+  padding: 22px;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
   align-items: flex-start;
-  margin-bottom: 16px;
+  gap: 18px;
+  margin-bottom: 18px;
 }
 
 .panel h2 {
   margin: 0 0 6px;
+  color: #17211b;
 }
 
 .panel p {
   margin: 0;
-  color: #66736b;
+  color: #5f6f65;
 }
 
 .range-buttons {
@@ -132,13 +192,15 @@ h1 {
   gap: 8px;
 }
 
-.range-buttons button {
+.range-buttons button,
+.log-toggle {
   border: none;
   background: #edf2ee;
-  padding: 10px 14px;
+  color: #17211b;
+  padding: 11px 15px;
   border-radius: 999px;
   cursor: pointer;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .range-buttons button.active {
@@ -146,9 +208,41 @@ h1 {
   color: white;
 }
 
-.chart-wrapper {
+.single-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.chart-card {
+  padding: 16px;
+  min-width: 0;
+}
+
+.chart-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.chart-title h3 {
+  margin: 0;
+  color: #17211b;
+}
+
+.chart-title span {
+  font-weight: 800;
+}
+
+.chart-mobile-fix {
   width: 100%;
-  height: 360px;
+  min-width: 0;
+  height: 220px;
+}
+
+.log-toggle {
+  margin-bottom: 14px;
 }
 
 .reading-list {
@@ -161,8 +255,8 @@ h1 {
   justify-content: space-between;
   gap: 12px;
   background: #f6f8f6;
-  padding: 14px;
   border-radius: 16px;
+  padding: 14px;
 }
 
 .reading-card div {
@@ -173,13 +267,13 @@ h1 {
 
 .reading-card span {
   background: white;
-  padding: 6px 10px;
   border-radius: 999px;
+  padding: 6px 10px;
   font-size: 13px;
 }
 
-.empty-state {
-  padding: 28px;
+.loading {
+  color: #17211b;
 }
 
 @media (max-width: 768px) {
@@ -188,32 +282,41 @@ h1 {
   }
 
   .topbar {
-    align-items: flex-start;
     flex-direction: column;
+    align-items: flex-start;
   }
 
   h1 {
-    font-size: 28px;
-    line-height: 1.1;
+    font-size: 30px;
+    line-height: 1.05;
   }
 
-  .cards {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+  .subtitle {
+    font-size: 15px;
+  }
+
+  .status-pill {
+    padding: 10px 14px;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .metric-card {
-    padding: 14px;
-    border-radius: 16px;
+    min-height: auto;
+    padding: 18px;
+    border-radius: 18px;
   }
 
   .metric-card h2 {
-    font-size: 25px;
+    font-size: 34px;
   }
 
   .panel {
     padding: 14px;
-    border-radius: 16px;
+    border-radius: 18px;
   }
 
   .panel-header {
@@ -221,25 +324,37 @@ h1 {
   }
 
   .range-buttons {
+    width: 100%;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    width: 100%;
   }
 
   .range-buttons button {
     width: 100%;
-    padding: 12px 8px;
   }
 
-  .chart-wrapper {
-    height: 300px;
+  .single-charts {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-card {
+    padding: 12px;
+    border-radius: 16px;
+    width: 100%;
     min-width: 0;
     overflow: hidden;
   }
 
+  .chart-mobile-fix {
+    height: 230px;
+    width: 100%;
+    min-width: 0;
+  }
+
   .recharts-wrapper,
-  .recharts-surface {
-    max-width: 100%;
+  .recharts-surface,
+  .recharts-responsive-container {
+    max-width: 100% !important;
   }
 
   .reading-card {
@@ -257,11 +372,15 @@ h1 {
 }
 
 @media (max-width: 420px) {
-  .cards {
+  h1 {
+    font-size: 27px;
+  }
+
+  .range-buttons {
     grid-template-columns: 1fr;
   }
 
-  .chart-wrapper {
-    height: 280px;
+  .chart-mobile-fix {
+    height: 210px;
   }
 }
