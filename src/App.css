@@ -1,0 +1,81 @@
+body {
+  margin: 0;
+  background: #f4f6f5;
+  font-family: Arial, sans-serif;
+  color: #17211b;
+}
+
+.dashboard {
+  padding: 32px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.card {
+  background: white;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.card p {
+  margin: 0;
+  color: #66736b;
+}
+
+.card h2 {
+  font-size: 32px;
+}
+
+.card span {
+  font-size: 16px;
+  color: #66736b;
+}
+
+table {
+  width: 100%;
+  background: white;
+  border-collapse: collapse;
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+th, td {
+  padding: 12px;
+  border-bottom: 1px solid #e5e8e6;
+  text-align: left;
+}
+
+.chart-box {
+  background: white;
+  border-radius: 18px;
+  padding: 20px;
+  margin: 24px 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.range-buttons {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.range-buttons button {
+  border: none;
+  background: white;
+  padding: 10px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  font-size: 15px;
+}
+
+.range-buttons button.active {
+  background: #17211b;
+  color: white;
+}
