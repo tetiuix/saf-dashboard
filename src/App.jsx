@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabaseClient";
 import "./App.css";
 
@@ -16,6 +16,7 @@ import {
 export default function App() {
   const [readings, setReadings] = useState([]);
   const [timeRange, setTimeRange] = useState("1h");
+  const [loading, setLoading] = useState(true);
 
   async function loadReadings(range = timeRange) {
     const fromDate = new Date();
@@ -30,14 +31,16 @@ export default function App() {
       .select("*")
       .gte("created_at", fromDate.toISOString())
       .order("created_at", { ascending: true })
-      .limit(2000);
+      .limit(3000);
 
     if (error) {
       console.error("Errore Supabase:", error);
+      setLoading(false);
       return;
     }
 
-    setReadings(data);
+    setReadings(data || []);
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -50,174 +53,137 @@ export default function App() {
     return () => clearInterval(interval);
   }, [timeRange]);
 
-  function changeRange(range) {
-    setTimeRange(range);
-    loadReadings(range);
-  }
-
   const latest = readings[readings.length - 1];
+
+  const status = useMemo(() => {
+    if (!latest) return { label: "Offline", className: "danger" };
+
+    if (latest.vpd > 1.4 || latest.temperature > 28 || latest.humidity < 45) {
+      return { label: "Attenzione", className: "warning" };
+    }
+
+    if (latest.vpd >= 0.9 && latest.vpd <= 1.4) {
+      return { label: "Stabile", className: "good" };
+    }
+
+    return { label: "Fuori range", className: "warning" };
+  }, [latest]);
+
+  const chartData = readings.map((row) => ({
+    ...row,
+    time: new Date(row.created_at).toLocaleTimeString("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  }));
 
   return (
     <main className="dashboard">
-      <h1>SAF Climate Dashboard</h1>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">SAF Climate System</p>
+          <h1>Dashboard Growbox</h1>
+          <p className="subtitle">ESP32 + DHT22 + Supabase Cloud</p>
+        </div>
 
-      {!latest && <p>Nessun dato ricevuto in questo intervallo.</p>}
+        <div className={`status-pill ${status.className}`}>
+          <span></span>
+          {status.label}
+        </div>
+      </header>
+
+      {loading && <p>Caricamento dati...</p>}
+
+      {!loading && !latest && (
+        <section className="empty-state">
+          <h2>Nessun dato ricevuto</h2>
+          <p>Controlla che ESP32 sia acceso e che Supabase riceva righe.</p>
+        </section>
+      )}
 
       {latest && (
         <>
           <section className="cards">
-            <Card title="Temperatura" value={latest.temperature} unit="°C" />
-            <Card title="Umidità" value={latest.humidity} unit="%" />
-            <Card title="VPD" value={latest.vpd} unit="kPa" />
-            <Card title="Dew Point" value={latest.dew_point} unit="°C" />
+            <MetricCard title="Temperatura" value={latest.temperature} unit="°C" />
+            <MetricCard title="Umidità" value={latest.humidity} unit="%" />
+            <MetricCard title="VPD" value={latest.vpd} unit="kPa" />
+            <MetricCard title="Dew Point" value={latest.dew_point} unit="°C" />
           </section>
 
-          <div className="range-buttons">
-            <button
-              type="button"
-              className={timeRange === "1h" ? "active" : ""}
-              onClick={() => changeRange("1h")}
-            >
-              1 ora
-            </button>
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <h2>Andamento climatico</h2>
+                <p>
+                  Intervallo: {timeRange} · Letture: {readings.length}
+                </p>
+              </div>
 
-            <button
-              type="button"
-              className={timeRange === "1d" ? "active" : ""}
-              onClick={() => changeRange("1d")}
-            >
+              <div className="range-buttons">
+                {[
+                  ["15m", "15 min"],
+                  ["1h", "1 ora"],
+                  ["1d", "1 giorno"],
+                  ["1w", "1 settimana"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    className={timeRange === value ? "active" : ""}
+                    onClick={() => setTimeRange(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-              
-              1 giorno
-            </button>
-
-            <button
-            type="button"
-            className={timeRange === "15m" ? "active" : ""}
-            onClick={() => changeRange("15m")}
-            >
-            15 min
-            </button>
-
-            <button
-              type="button"
-              className={timeRange === "1w" ? "active" : ""}
-              onClick={() => changeRange("1w")}
-            >
-              1 settimana
-            </button>
-          </div>
-
-          <section className="chart-box">
-            <h2>Andamento nel tempo</h2>
-
-            <p>
-           Intervallo attivo: {timeRange} — Letture caricate: {readings.length}
-           </p>
-
-            
-
-            <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={readings}>
-                <CartesianGrid strokeDasharray="3 3" />
-
-                <XAxis
-                  dataKey="created_at"
-                  tickFormatter={(value) =>
-                    new Date(value).toLocaleTimeString("it-IT", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  }
-                />
-
-                <YAxis />
-
-                <Tooltip
-                  labelFormatter={(value) =>
-                    new Date(value).toLocaleString("it-IT")
-                  }
-                />
-
-                <Legend />
-
-                <Line
-                  type="monotone"
-                  dataKey="temperature"
-                  name="Temperatura °C"
-                  stroke="#ef4444"
-                  strokeWidth={2}
-                  dot={false}
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="humidity"
-                  name="Umidità %"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={false}
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="vpd"
-                  name="VPD kPa"
-                  stroke="#22c55e"
-                  strokeWidth={2}
-                  dot={false}
-                />
-
-                <Line
-                  type="monotone"
-                  dataKey="dew_point"
-                  name="Dew Point °C"
-                  stroke="#a855f7"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <div className="chart-wrapper">
+              <ResponsiveContainer width="100%" height={340}>
+                <LineChart data={chartData} margin={{ top: 10, right: 16, left: -18, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="temperature" name="Temp °C" stroke="#ef4444" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="humidity" name="UR %" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="vpd" name="VPD" stroke="#22c55e" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="dew_point" name="Dew Point" stroke="#a855f7" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </section>
 
-          <h2>Ultime letture</h2>
+          <section className="panel">
+            <h2>Ultime letture</h2>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Ora</th>
-                <th>Temp</th>
-                <th>Umidità</th>
-                <th>VPD</th>
-                <th>Dew Point</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {[...readings].reverse().slice(0, 20).map((row) => (
-                <tr key={row.id}>
-                  <td>{new Date(row.created_at).toLocaleString("it-IT")}</td>
-                  <td>{row.temperature} °C</td>
-                  <td>{row.humidity} %</td>
-                  <td>{row.vpd} kPa</td>
-                  <td>{row.dew_point} °C</td>
-                </tr>
+            <div className="reading-list">
+              {[...readings].reverse().slice(0, 12).map((row) => (
+                <article className="reading-card" key={row.id}>
+                  <strong>{new Date(row.created_at).toLocaleString("it-IT")}</strong>
+                  <div>
+                    <span>{row.temperature} °C</span>
+                    <span>{row.humidity} %</span>
+                    <span>{row.vpd} kPa</span>
+                    <span>{row.dew_point} °C</span>
+                  </div>
+                </article>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </section>
         </>
       )}
     </main>
   );
 }
 
-function Card({ title, value, unit }) {
+function MetricCard({ title, value, unit }) {
   return (
-    <div className="card">
+    <article className="metric-card">
       <p>{title}</p>
       <h2>
         {value} <span>{unit}</span>
       </h2>
-    </div>
+    </article>
   );
 }
