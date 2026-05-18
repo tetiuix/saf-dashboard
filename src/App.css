@@ -384,3 +384,65 @@ h1 {
     height: 210px;
   }
 }
+
+.stage-panel {
+  background: #17211b;
+  color: white;
+  border-radius: 24px;
+  padding: 22px;
+  margin-bottom: 18px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.1);
+}
+
+.stage-panel h2 {
+  margin: 0 0 6px;
+}
+
+.stage-panel p {
+  margin: 0;
+  color: #d8e0da;
+}
+
+.stage-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stage-buttons button {
+  border: none;
+  background: rgba(255,255,255,0.12);
+  color: white;
+  padding: 11px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.stage-buttons button.active {
+  background: white;
+  color: #17211b;
+}
+
+@media (max-width: 768px) {
+  .stage-panel {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .stage-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .stage-buttons button {
+    width: 100%;
+  }
+}

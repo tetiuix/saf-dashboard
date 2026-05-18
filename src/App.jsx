@@ -19,13 +19,51 @@ const ranges = [
   ["1w", "1 settimana"],
 ];
 
-const metrics = [
+const plantStages = {
+  clone: {
+    label: "Cloni",
+    targets: {
+      temperature: [22, 26],
+      humidity: [70, 85],
+      vpd: [0.4, 0.8],
+      dew_point: [16, 22],
+    },
+  },
+  veg: {
+    label: "Vegetativa",
+    targets: {
+      temperature: [22, 27],
+      humidity: [55, 70],
+      vpd: [0.8, 1.2],
+      dew_point: [14, 20],
+    },
+  },
+  earlyFlower: {
+    label: "Fioritura iniziale",
+    targets: {
+      temperature: [21, 26],
+      humidity: [45, 60],
+      vpd: [1.0, 1.4],
+      dew_point: [12, 18],
+    },
+  },
+  lateFlower: {
+    label: "Fioritura finale",
+    targets: {
+      temperature: [20, 25],
+      humidity: [40, 50],
+      vpd: [1.2, 1.6],
+      dew_point: [10, 16],
+    },
+  },
+};
+
+const metricBase = [
   {
     key: "temperature",
     label: "Temperatura",
     unit: "°C",
     color: "#ef4444",
-    ideal: [20, 25],
     lowText: "Aumenta temperatura",
     highText: "Abbassa temperatura",
   },
@@ -34,7 +72,6 @@ const metrics = [
     label: "Umidità",
     unit: "%",
     color: "#3b82f6",
-    ideal: [50, 65],
     lowText: "Aumenta umidità",
     highText: "Abbassa umidità",
   },
@@ -43,7 +80,6 @@ const metrics = [
     label: "VPD",
     unit: "kPa",
     color: "#22c55e",
-    ideal: [0.9, 1.4],
     lowText: "VPD basso",
     highText: "VPD alto",
   },
@@ -52,7 +88,6 @@ const metrics = [
     label: "Dew Point",
     unit: "°C",
     color: "#a855f7",
-    ideal: [12, 18],
     lowText: "Punto rugiada basso",
     highText: "Rischio condensa",
   },
@@ -61,8 +96,14 @@ const metrics = [
 export default function App() {
   const [readings, setReadings] = useState([]);
   const [timeRange, setTimeRange] = useState("1h");
+  const [plantStage, setPlantStage] = useState("veg");
   const [loading, setLoading] = useState(true);
   const [showLogs, setShowLogs] = useState(false);
+
+  const metrics = metricBase.map((metric) => ({
+    ...metric,
+    ideal: plantStages[plantStage].targets[metric.key],
+  }));
 
   async function loadReadings(range = timeRange) {
     const fromDate = new Date();
@@ -120,7 +161,7 @@ export default function App() {
     if (warnings.length === 0) return { text: "Stabile", className: "good" };
     if (warnings.length <= 2) return { text: "Da regolare", className: "warning" };
     return { text: "Critico", className: "danger" };
-  }, [latest]);
+  }, [latest, plantStage]);
 
   return (
     <main className="dashboard">
@@ -136,6 +177,25 @@ export default function App() {
           {globalStatus.text}
         </div>
       </header>
+
+      <section className="stage-panel">
+        <div>
+          <h2>Fase pianta</h2>
+          <p>Seleziona la fase: i target climatici cambiano automaticamente.</p>
+        </div>
+
+        <div className="stage-buttons">
+          {Object.entries(plantStages).map(([key, stage]) => (
+            <button
+              key={key}
+              className={plantStage === key ? "active" : ""}
+              onClick={() => setPlantStage(key)}
+            >
+              {stage.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
       {loading && <p className="loading">Caricamento dati...</p>}
 
@@ -158,7 +218,9 @@ export default function App() {
             <div className="panel-header">
               <div>
                 <h2>Andamento climatico</h2>
-                <p>Intervallo: {timeRange} · Letture: {readings.length}</p>
+                <p>
+                  Fase: {plantStages[plantStage].label} · Intervallo: {timeRange} · Letture: {readings.length}
+                </p>
               </div>
 
               <div className="range-buttons">
@@ -245,7 +307,7 @@ function MetricCard({ metric, latest }) {
       </div>
 
       <small>
-        Range ideale: {min}–{max} {metric.unit}
+        Target fase: {min}–{max} {metric.unit}
       </small>
     </article>
   );
@@ -257,7 +319,7 @@ function MiniChart({ metric, chartData }) {
       <div className="chart-title">
         <h3>{metric.label}</h3>
         <span style={{ color: metric.color }}>
-          {metric.unit}
+          Target {metric.ideal[0]}–{metric.ideal[1]} {metric.unit}
         </span>
       </div>
 
