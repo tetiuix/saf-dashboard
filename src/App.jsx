@@ -3,13 +3,15 @@ import { supabase } from "./supabaseClient";
 import "./App.css";
 
 import {
-  LineChart,
+  Area,
+  AreaChart,
+  CartesianGrid,
   Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
 } from "recharts";
 
 const ranges = [
@@ -22,6 +24,7 @@ const ranges = [
 const plantStages = {
   clone: {
     label: "Cloni",
+    note: "Radicazione stabile, alta umidità, VPD basso.",
     targets: {
       temperature: [22, 26],
       humidity: [70, 85],
@@ -31,6 +34,7 @@ const plantStages = {
   },
   veg: {
     label: "Vegetativa",
+    note: "Crescita attiva, clima stabile e traspirazione controllata.",
     targets: {
       temperature: [22, 27],
       humidity: [55, 70],
@@ -40,6 +44,7 @@ const plantStages = {
   },
   earlyFlower: {
     label: "Fioritura iniziale",
+    note: "Riduci umidità e mantieni VPD medio.",
     targets: {
       temperature: [21, 26],
       humidity: [45, 60],
@@ -49,6 +54,7 @@ const plantStages = {
   },
   lateFlower: {
     label: "Fioritura finale",
+    note: "Umidità più bassa, attenzione muffe e condensa.",
     targets: {
       temperature: [20, 25],
       humidity: [40, 50],
@@ -63,7 +69,7 @@ const metricBase = [
     key: "temperature",
     label: "Temperatura",
     unit: "°C",
-    color: "#ef4444",
+    color: "#f97316",
     lowText: "Aumenta temperatura",
     highText: "Abbassa temperatura",
   },
@@ -71,7 +77,7 @@ const metricBase = [
     key: "humidity",
     label: "Umidità",
     unit: "%",
-    color: "#3b82f6",
+    color: "#38bdf8",
     lowText: "Aumenta umidità",
     highText: "Abbassa umidità",
   },
@@ -87,7 +93,7 @@ const metricBase = [
     key: "dew_point",
     label: "Dew Point",
     unit: "°C",
-    color: "#a855f7",
+    color: "#a78bfa",
     lowText: "Punto rugiada basso",
     highText: "Rischio condensa",
   },
@@ -97,13 +103,18 @@ export default function App() {
   const [readings, setReadings] = useState([]);
   const [timeRange, setTimeRange] = useState("1h");
   const [plantStage, setPlantStage] = useState("veg");
-  const [loading, setLoading] = useState(true);
+  const [activeMetric, setActiveMetric] = useState("vpd");
   const [showLogs, setShowLogs] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const metrics = metricBase.map((metric) => ({
-    ...metric,
-    ideal: plantStages[plantStage].targets[metric.key],
-  }));
+  const metrics = useMemo(
+    () =>
+      metricBase.map((metric) => ({
+        ...metric,
+        ideal: plantStages[plantStage].targets[metric.key],
+      })),
+    [plantStage]
+  );
 
   async function loadReadings(range = timeRange) {
     const fromDate = new Date();
@@ -142,208 +153,367 @@ export default function App() {
 
   const latest = readings[readings.length - 1];
 
-  const chartData = readings.map((row) => ({
-    ...row,
-    time: new Date(row.created_at).toLocaleTimeString("it-IT", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  }));
+  const chartData = useMemo(
+    () =>
+      readings.map((row) => ({
+        ...row,
+        time: new Date(row.created_at).toLocaleTimeString("it-IT", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      })),
+    [readings]
+  );
+
+  const metricStates = useMemo(() => {
+    if (!latest) return [];
+
+    return metrics.map((metric) => {
+      const value = Number(latest[metric.key]);
+      const [min, max] = metric.ideal;
+
+      if (value < min) {
+        return { ...metric, value, state: "warning", message: metric.lowText };
+      }
+
+      if (value > max) {
+        return { ...metric, value, state: "danger", message: metric.highText };
+      }
+
+      return { ...metric, value, state: "good", message: "Valore ottimale" };
+    });
+  }, [latest, metrics]);
+
+  const score = useMemo(() => {
+    if (!latest) return 0;
+    const good = metricStates.filter((m) => m.state === "good").length;
+    return Math.round((good / metricStates.length) * 100);
+  }, [latest, metricStates]);
 
   const globalStatus = useMemo(() => {
-    if (!latest) return { text: "Offline", className: "danger" };
+    if (!latest) return { label: "Offline", className: "danger" };
+    if (score >= 90) return { label: "Ottimale", className: "good" };
+    if (score >= 60) return { label: "Da regolare", className: "warning" };
+    return { label: "Critico", className: "danger" };
+  }, [latest, score]);
 
-    const warnings = metrics.filter((m) => {
-      const value = Number(latest[m.key]);
-      return value < m.ideal[0] || value > m.ideal[1];
+  const activeMetricData =
+    metrics.find((metric) => metric.key === activeMetric) || metrics[0];
+
+  const aiInsights = useMemo(() => {
+    if (!latest) return [];
+
+    const badMetrics = metricStates.filter((m) => m.state !== "good");
+
+    if (badMetrics.length === 0) {
+      return [
+        "Ambiente stabile per la fase selezionata.",
+        "I parametri principali sono dentro target.",
+        "Mantieni la configurazione attuale.",
+      ];
+    }
+
+    return badMetrics.slice(0, 3).map((m) => {
+      if (m.key === "humidity" && m.state === "warning") {
+        return "Umidità sotto target: valuta umidificatore o minore estrazione.";
+      }
+
+      if (m.key === "humidity" && m.state === "danger") {
+        return "Umidità sopra target: aumenta estrazione o deumidificazione.";
+      }
+
+      if (m.key === "temperature" && m.state === "danger") {
+        return "Temperatura alta: aumenta ventilazione o riduci calore lampada.";
+      }
+
+      if (m.key === "vpd" && m.state === "danger") {
+        return "VPD alto: pianta sotto stress traspirativo, alza umidità o abbassa temperatura.";
+      }
+
+      if (m.key === "dew_point" && m.state === "danger") {
+        return "Dew point alto: attenzione a condensa e rischio muffe.";
+      }
+
+      return `${m.label}: ${m.message}.`;
     });
+  }, [latest, metricStates]);
 
-    if (warnings.length === 0) return { text: "Stabile", className: "good" };
-    if (warnings.length <= 2) return { text: "Da regolare", className: "warning" };
-    return { text: "Critico", className: "danger" };
-  }, [latest, plantStage]);
+  const lastUpdate = latest
+    ? new Date(latest.created_at).toLocaleString("it-IT")
+    : "Nessun dato";
 
   return (
-    <main className="dashboard">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">SAF Climate System</p>
-          <h1>Dashboard Growbox</h1>
-          <p className="subtitle">ESP32 · DHT22 · Supabase Cloud</p>
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">S</div>
+          <div>
+            <strong>SAF Climate</strong>
+            <span>Growbox AI Control</span>
+          </div>
         </div>
 
-        <div className={`status-pill ${globalStatus.className}`}>
-          <span />
-          {globalStatus.text}
+        <nav>
+          <a className="active">Overview</a>
+          <a>Climate</a>
+          <a>AI Insights</a>
+          <a>Automation</a>
+          <a>History</a>
+        </nav>
+
+        <div className="device-mini">
+          <span className="online-dot"></span>
+          <div>
+            <strong>ESP32 Test Unit</strong>
+            <p>Cloud sync attivo</p>
+          </div>
         </div>
-      </header>
+      </aside>
 
-      <section className="stage-panel">
-        <div>
-          <h2>Fase pianta</h2>
-          <p>Seleziona la fase: i target climatici cambiano automaticamente.</p>
-        </div>
+      <section className="dashboard">
+        <header className="topbar">
+          <div>
+            <p className="eyebrow">Live Environment</p>
+            <h1>Dashboard Growbox</h1>
+            <p className="subtitle">
+              Ultimo aggiornamento: {lastUpdate}
+            </p>
+          </div>
 
-        <div className="stage-buttons">
-          {Object.entries(plantStages).map(([key, stage]) => (
-            <button
-              key={key}
-              className={plantStage === key ? "active" : ""}
-              onClick={() => setPlantStage(key)}
-            >
-              {stage.label}
-            </button>
-          ))}
-        </div>
-      </section>
+          <div className={`status-pill ${globalStatus.className}`}>
+            <span />
+            {globalStatus.label}
+          </div>
+        </header>
 
-      {loading && <p className="loading">Caricamento dati...</p>}
+        <section className="stage-panel">
+          <div>
+            <h2>Fase pianta</h2>
+            <p>{plantStages[plantStage].note}</p>
+          </div>
 
-      {!loading && !latest && (
-        <section className="panel">
-          <h2>Nessun dato ricevuto</h2>
-          <p>Controlla ESP32, WiFi e tabella Supabase.</p>
-        </section>
-      )}
-
-      {latest && (
-        <>
-          <section className="metric-grid">
-            {metrics.map((metric) => (
-              <MetricCard key={metric.key} metric={metric} latest={latest} />
+          <div className="stage-buttons">
+            {Object.entries(plantStages).map(([key, stage]) => (
+              <button
+                key={key}
+                className={plantStage === key ? "active" : ""}
+                onClick={() => setPlantStage(key)}
+              >
+                {stage.label}
+              </button>
             ))}
+          </div>
+        </section>
+
+        {loading && <p className="loading">Caricamento dati...</p>}
+
+        {!loading && !latest && (
+          <section className="panel empty-state">
+            <h2>Nessun dato ricevuto</h2>
+            <p>Controlla ESP32, WiFi e tabella Supabase.</p>
           </section>
+        )}
 
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <h2>Andamento climatico</h2>
-                <p>
-                  Fase: {plantStages[plantStage].label} · Intervallo: {timeRange} · Letture: {readings.length}
-                </p>
+        {latest && (
+          <>
+            <section className="hero-grid">
+              <div className={`health-card ${globalStatus.className}`}>
+                <p>Growbox score</p>
+                <h2>{score}/100</h2>
+                <strong>{globalStatus.label}</strong>
+                <span>
+                  Valutazione basata sui target della fase{" "}
+                  {plantStages[plantStage].label}.
+                </span>
               </div>
 
-              <div className="range-buttons">
-                {ranges.map(([value, label]) => (
-                  <button
-                    key={value}
-                    className={timeRange === value ? "active" : ""}
-                    onClick={() => setTimeRange(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+              <div className="ai-card">
+                <div className="section-title">
+                  <h2>AI Insights</h2>
+                  <span>Logic preview</span>
+                </div>
 
-            <div className="single-charts">
-              {metrics.map((metric) => (
-                <MiniChart
+                <ul>
+                  {aiInsights.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+
+            <section className="metric-grid">
+              {metricStates.map((metric) => (
+                <MetricCard
                   key={metric.key}
                   metric={metric}
-                  chartData={chartData}
+                  active={activeMetric === metric.key}
+                  onClick={() => setActiveMetric(metric.key)}
                 />
               ))}
-            </div>
-          </section>
+            </section>
 
-          <section className="panel">
-            <button className="log-toggle" onClick={() => setShowLogs(!showLogs)}>
-              {showLogs ? "Nascondi log letture" : "Mostra log letture"}
-            </button>
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>{activeMetricData.label}</h2>
+                  <p>
+                    Target: {activeMetricData.ideal[0]}–
+                    {activeMetricData.ideal[1]} {activeMetricData.unit}
+                  </p>
+                </div>
 
-            {showLogs && (
-              <div className="reading-list">
-                {[...readings].reverse().slice(0, 20).map((row) => (
-                  <article className="reading-card" key={row.id}>
-                    <strong>{new Date(row.created_at).toLocaleString("it-IT")}</strong>
-                    <div>
-                      <span>{row.temperature} °C</span>
-                      <span>{row.humidity} %</span>
-                      <span>{row.vpd} kPa</span>
-                      <span>{row.dew_point} °C</span>
-                    </div>
-                  </article>
-                ))}
+                <div className="range-buttons">
+                  {ranges.map(([value, label]) => (
+                    <button
+                      key={value}
+                      className={timeRange === value ? "active" : ""}
+                      onClick={() => setTimeRange(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
-          </section>
-        </>
-      )}
+
+              <div className="main-chart">
+                <ResponsiveContainer width="100%" height={340}>
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 20, right: 18, left: -20, bottom: 8 }}
+                  >
+                    <defs>
+                      <linearGradient id="activeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop
+                          offset="5%"
+                          stopColor={activeMetricData.color}
+                          stopOpacity={0.45}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor={activeMetricData.color}
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="time" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                    <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1e293b" }} />
+                    <Area
+                      type="monotone"
+                      dataKey={activeMetricData.key}
+                      stroke={activeMetricData.color}
+                      fill="url(#activeGradient)"
+                      strokeWidth={3}
+                      dot={false}
+                      name={activeMetricData.label}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="two-col">
+              <section className="panel">
+                <div className="section-title">
+                  <h2>Device Status</h2>
+                  <span>Live</span>
+                </div>
+
+                <div className="status-list">
+                  <StatusRow label="ESP32" value="Online" state="good" />
+                  <StatusRow label="Sensore DHT22" value="OK" state="good" />
+                  <StatusRow label="Supabase Sync" value="Attivo" state="good" />
+                  <StatusRow label="Update rate" value="30 sec" state="info" />
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="section-title">
+                  <h2>Automazioni</h2>
+                  <span>Preview</span>
+                </div>
+
+                <div className="automation-list">
+                  <Automation label="Umidificatore" active={latest.humidity < activeTarget("humidity", plantStage)[0]} />
+                  <Automation label="Estrattore" active={latest.temperature > activeTarget("temperature", plantStage)[1]} />
+                  <Automation label="Riscaldamento" active={latest.temperature < activeTarget("temperature", plantStage)[0]} />
+                  <Automation label="Allarme VPD" active={latest.vpd > activeTarget("vpd", plantStage)[1]} />
+                </div>
+              </section>
+            </section>
+
+            <section className="panel">
+              <button className="log-toggle" onClick={() => setShowLogs(!showLogs)}>
+                {showLogs ? "Nascondi log letture" : "Mostra log letture"}
+              </button>
+
+              {showLogs && (
+                <div className="reading-list">
+                  {[...readings].reverse().slice(0, 20).map((row) => (
+                    <article className="reading-card" key={row.id}>
+                      <strong>{new Date(row.created_at).toLocaleString("it-IT")}</strong>
+                      <div>
+                        <span>{row.temperature} °C</span>
+                        <span>{row.humidity} %</span>
+                        <span>{row.vpd} kPa</span>
+                        <span>{row.dew_point} °C</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </section>
     </main>
   );
 }
 
-function MetricCard({ metric, latest }) {
-  const value = Number(latest[metric.key]);
-  const [min, max] = metric.ideal;
+function activeTarget(key, stage) {
+  return plantStages[stage].targets[key];
+}
 
-  let state = "ok";
-  let message = "Valore ottimale";
-
-  if (value < min) {
-    state = "warning";
-    message = metric.lowText;
-  }
-
-  if (value > max) {
-    state = "danger";
-    message = metric.highText;
-  }
-
+function MetricCard({ metric, active, onClick }) {
   return (
-    <article className={`metric-card ${state}`}>
+    <button className={`metric-card ${metric.state} ${active ? "active" : ""}`} onClick={onClick}>
       <div className="metric-top">
         <p>{metric.label}</p>
         <span className="metric-dot" style={{ background: metric.color }} />
       </div>
 
       <h2>
-        {value.toFixed(2)} <span>{metric.unit}</span>
+        {metric.value.toFixed(2)} <span>{metric.unit}</span>
       </h2>
 
-      <div className={`metric-action ${state}`}>
-        {message}
+      <div className={`metric-action ${metric.state}`}>
+        {metric.message}
       </div>
 
       <small>
-        Target fase: {min}–{max} {metric.unit}
+        Target: {metric.ideal[0]}–{metric.ideal[1]} {metric.unit}
       </small>
-    </article>
+    </button>
   );
 }
 
-function MiniChart({ metric, chartData }) {
+function StatusRow({ label, value, state }) {
   return (
-    <article className="chart-card">
-      <div className="chart-title">
-        <h3>{metric.label}</h3>
-        <span style={{ color: metric.color }}>
-          Target {metric.ideal[0]}–{metric.ideal[1]} {metric.unit}
-        </span>
-      </div>
+    <div className="status-row">
+      <span>{label}</span>
+      <strong className={state}>{value}</strong>
+    </div>
+  );
+}
 
-      <div className="chart-mobile-fix">
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart
-            data={chartData}
-            margin={{ top: 10, right: 12, left: -24, bottom: 0 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="time" tick={{ fontSize: 10 }} minTickGap={28} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip />
-            <Line
-              type="monotone"
-              dataKey={metric.key}
-              name={metric.label}
-              stroke={metric.color}
-              strokeWidth={2.5}
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+function Automation({ label, active }) {
+  return (
+    <div className="automation-row">
+      <span>{label}</span>
+      <div className={`toggle ${active ? "on" : ""}`}>
+        <i />
       </div>
-    </article>
+    </div>
   );
 }
