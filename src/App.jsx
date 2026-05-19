@@ -6,25 +6,24 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
+  ReferenceLine,
 } from "recharts";
 
-const ranges = [
+const TIME_RANGES = [
   ["15m", "15 min"],
   ["1h", "1 ora"],
   ["1d", "1 giorno"],
   ["1w", "1 settimana"],
 ];
 
-const plantStages = {
+const PLANT_STAGES = {
   clone: {
     label: "Cloni",
-    note: "Radicazione stabile, alta umidità, VPD basso.",
+    description: "Radicazione e attecchimento. Umidità alta, VPD basso.",
     targets: {
       temperature: [22, 26],
       humidity: [70, 85],
@@ -34,7 +33,7 @@ const plantStages = {
   },
   veg: {
     label: "Vegetativa",
-    note: "Crescita attiva, clima stabile e traspirazione controllata.",
+    description: "Crescita attiva. Equilibrio tra temperatura, umidità e VPD.",
     targets: {
       temperature: [22, 27],
       humidity: [55, 70],
@@ -44,7 +43,7 @@ const plantStages = {
   },
   earlyFlower: {
     label: "Fioritura iniziale",
-    note: "Riduci umidità e mantieni VPD medio.",
+    description: "Riduzione umidità e controllo traspirazione.",
     targets: {
       temperature: [21, 26],
       humidity: [45, 60],
@@ -54,7 +53,7 @@ const plantStages = {
   },
   lateFlower: {
     label: "Fioritura finale",
-    note: "Umidità più bassa, attenzione muffe e condensa.",
+    description: "Umidità più bassa. Massima attenzione a muffe e condensa.",
     targets: {
       temperature: [20, 25],
       humidity: [40, 50],
@@ -64,10 +63,11 @@ const plantStages = {
   },
 };
 
-const metricBase = [
+const METRICS_BASE = [
   {
     key: "temperature",
     label: "Temperatura",
+    short: "Temp",
     unit: "°C",
     color: "#f97316",
     lowText: "Aumenta temperatura",
@@ -76,6 +76,7 @@ const metricBase = [
   {
     key: "humidity",
     label: "Umidità",
+    short: "UR",
     unit: "%",
     color: "#38bdf8",
     lowText: "Aumenta umidità",
@@ -84,6 +85,7 @@ const metricBase = [
   {
     key: "vpd",
     label: "VPD",
+    short: "VPD",
     unit: "kPa",
     color: "#22c55e",
     lowText: "VPD basso",
@@ -92,6 +94,7 @@ const metricBase = [
   {
     key: "dew_point",
     label: "Dew Point",
+    short: "Dew",
     unit: "°C",
     color: "#a78bfa",
     lowText: "Punto rugiada basso",
@@ -99,30 +102,69 @@ const metricBase = [
   },
 ];
 
+function getStoredStage() {
+  return localStorage.getItem("saf_plant_stage") || "veg";
+}
+
+function getStoredStageUpdatedAt() {
+  return localStorage.getItem("saf_plant_stage_updated_at") || null;
+}
+
+function formatDate(value) {
+  if (!value) return "Mai";
+  return new Date(value).toLocaleString("it-IT");
+}
+
+function getRangeStart(range) {
+  const fromDate = new Date();
+
+  if (range === "15m") fromDate.setMinutes(fromDate.getMinutes() - 15);
+  if (range === "1h") fromDate.setHours(fromDate.getHours() - 1);
+  if (range === "1d") fromDate.setDate(fromDate.getDate() - 1);
+  if (range === "1w") fromDate.setDate(fromDate.getDate() - 7);
+
+  return fromDate;
+}
+
+function getFreshness(latest) {
+  if (!latest) return { online: false, label: "Offline", ageSeconds: null };
+
+  const ageMs = Date.now() - new Date(latest.created_at).getTime();
+  const ageSeconds = Math.round(ageMs / 1000);
+
+  if (ageSeconds > 180) {
+    return { online: false, label: "Offline", ageSeconds };
+  }
+
+  if (ageSeconds > 90) {
+    return { online: true, label: "In ritardo", ageSeconds };
+  }
+
+  return { online: true, label: "Online", ageSeconds };
+}
+
 export default function App() {
   const [readings, setReadings] = useState([]);
   const [timeRange, setTimeRange] = useState("1h");
-  const [plantStage, setPlantStage] = useState("veg");
+  const [plantStage, setPlantStage] = useState(getStoredStage);
+  const [stageUpdatedAt, setStageUpdatedAt] = useState(getStoredStageUpdatedAt);
+  const [pendingStage, setPendingStage] = useState(null);
   const [activeMetric, setActiveMetric] = useState("vpd");
   const [showLogs, setShowLogs] = useState(false);
+  const [showEvents, setShowEvents] = useState(true);
   const [loading, setLoading] = useState(true);
 
   const metrics = useMemo(
     () =>
-      metricBase.map((metric) => ({
+      METRICS_BASE.map((metric) => ({
         ...metric,
-        ideal: plantStages[plantStage].targets[metric.key],
+        ideal: PLANT_STAGES[plantStage].targets[metric.key],
       })),
     [plantStage]
   );
 
   async function loadReadings(range = timeRange) {
-    const fromDate = new Date();
-
-    if (range === "15m") fromDate.setMinutes(fromDate.getMinutes() - 15);
-    if (range === "1h") fromDate.setHours(fromDate.getHours() - 1);
-    if (range === "1d") fromDate.setDate(fromDate.getDate() - 1);
-    if (range === "1w") fromDate.setDate(fromDate.getDate() - 7);
+    const fromDate = getRangeStart(range);
 
     const { data, error } = await supabase
       .from("sensor_readings")
@@ -152,6 +194,7 @@ export default function App() {
   }, [timeRange]);
 
   const latest = readings[readings.length - 1];
+  const freshness = getFreshness(latest);
 
   const chartData = useMemo(
     () =>
@@ -173,74 +216,155 @@ export default function App() {
       const [min, max] = metric.ideal;
 
       if (value < min) {
-        return { ...metric, value, state: "warning", message: metric.lowText };
+        return {
+          ...metric,
+          value,
+          state: "warning",
+          message: metric.lowText,
+          direction: "low",
+        };
       }
 
       if (value > max) {
-        return { ...metric, value, state: "danger", message: metric.highText };
+        return {
+          ...metric,
+          value,
+          state: "danger",
+          message: metric.highText,
+          direction: "high",
+        };
       }
 
-      return { ...metric, value, state: "good", message: "Valore ottimale" };
+      return {
+        ...metric,
+        value,
+        state: "good",
+        message: "Valore ottimale",
+        direction: "ok",
+      };
     });
   }, [latest, metrics]);
 
   const score = useMemo(() => {
-    if (!latest) return 0;
+    if (!latest || !freshness.online) return 0;
     const good = metricStates.filter((m) => m.state === "good").length;
     return Math.round((good / metricStates.length) * 100);
-  }, [latest, metricStates]);
+  }, [latest, metricStates, freshness.online]);
 
   const globalStatus = useMemo(() => {
-    if (!latest) return { label: "Offline", className: "danger" };
+    if (!latest || !freshness.online) return { label: "Offline", className: "danger" };
     if (score >= 90) return { label: "Ottimale", className: "good" };
     if (score >= 60) return { label: "Da regolare", className: "warning" };
     return { label: "Critico", className: "danger" };
-  }, [latest, score]);
+  }, [latest, score, freshness.online]);
 
   const activeMetricData =
     metrics.find((metric) => metric.key === activeMetric) || metrics[0];
 
-  const aiInsights = useMemo(() => {
-    if (!latest) return [];
+  const activeMetricState =
+    metricStates.find((metric) => metric.key === activeMetric) || null;
 
-    const badMetrics = metricStates.filter((m) => m.state !== "good");
+  const recommendedActions = useMemo(() => {
+    if (!latest) return ["In attesa dei dati dal dispositivo."];
 
-    if (badMetrics.length === 0) {
+    if (!freshness.online) {
       return [
-        "Ambiente stabile per la fase selezionata.",
-        "I parametri principali sono dentro target.",
-        "Mantieni la configurazione attuale.",
+        "Dispositivo offline: controlla alimentazione ESP32.",
+        "Verifica che il WiFi sia attivo e raggiungibile.",
+        "Controlla che Supabase riceva nuove righe.",
       ];
     }
 
-    return badMetrics.slice(0, 3).map((m) => {
-      if (m.key === "humidity" && m.state === "warning") {
-        return "Umidità sotto target: valuta umidificatore o minore estrazione.";
-      }
+    const actions = metricStates
+      .filter((m) => m.state !== "good")
+      .map((m) => {
+        if (m.key === "humidity" && m.direction === "low") {
+          return "Aumenta umidità: attiva umidificatore o riduci estrazione.";
+        }
+        if (m.key === "humidity" && m.direction === "high") {
+          return "Abbassa umidità: aumenta estrazione o deumidificazione.";
+        }
+        if (m.key === "temperature" && m.direction === "low") {
+          return "Aumenta temperatura: valuta tappetino, riscaldatore o minore estrazione.";
+        }
+        if (m.key === "temperature" && m.direction === "high") {
+          return "Abbassa temperatura: aumenta ventilazione o riduci calore lampada.";
+        }
+        if (m.key === "vpd" && m.direction === "low") {
+          return "VPD basso: riduci umidità o aumenta leggermente temperatura.";
+        }
+        if (m.key === "vpd" && m.direction === "high") {
+          return "VPD alto: aumenta umidità o abbassa temperatura.";
+        }
+        if (m.key === "dew_point" && m.direction === "high") {
+          return "Dew point alto: aumenta ricambio aria per ridurre rischio condensa.";
+        }
+        return `${m.label}: ${m.message}.`;
+      });
 
-      if (m.key === "humidity" && m.state === "danger") {
-        return "Umidità sopra target: aumenta estrazione o deumidificazione.";
-      }
+    if (actions.length === 0) {
+      return [
+        "Parametri nel target della fase selezionata.",
+        "Mantieni configurazione attuale.",
+        "Continua monitoraggio trend VPD.",
+      ];
+    }
 
-      if (m.key === "temperature" && m.state === "danger") {
-        return "Temperatura alta: aumenta ventilazione o riduci calore lampada.";
-      }
+    return actions;
+  }, [latest, freshness.online, metricStates]);
 
-      if (m.key === "vpd" && m.state === "danger") {
-        return "VPD alto: pianta sotto stress traspirativo, alza umidità o abbassa temperatura.";
-      }
+  const events = useMemo(() => {
+    const list = [];
 
-      if (m.key === "dew_point" && m.state === "danger") {
-        return "Dew point alto: attenzione a condensa e rischio muffe.";
-      }
+    if (!latest) return list;
 
-      return `${m.label}: ${m.message}.`;
+    if (!freshness.online) {
+      list.push({
+        type: "danger",
+        title: "Dispositivo offline",
+        text: `Ultimo dato ricevuto ${freshness.ageSeconds}s fa.`,
+      });
+    }
+
+    metricStates.forEach((m) => {
+      if (m.state !== "good") {
+        list.push({
+          type: m.state,
+          title: `${m.label}: ${m.message}`,
+          text: `${m.value.toFixed(2)} ${m.unit} · Target ${m.ideal[0]}–${m.ideal[1]} ${m.unit}`,
+        });
+      }
     });
-  }, [latest, metricStates]);
 
-  const lastUpdate = latest
-    ? new Date(latest.created_at).toLocaleString("it-IT")
-    : "Nessun dato";
+    if (list.length === 0) {
+      list.push({
+        type: "good",
+        title: "Ambiente stabile",
+        text: "Tutti i valori sono nel target della fase selezionata.",
+      });
+    }
+
+    return list;
+  }, [latest, freshness, metricStates]);
+
+  function requestStageChange(stageKey) {
+    if (stageKey === plantStage) return;
+    setPendingStage(stageKey);
+  }
+
+  function confirmStageChange() {
+    if (!pendingStage) return;
+
+    const now = new Date().toISOString();
+
+    setPlantStage(pendingStage);
+    setStageUpdatedAt(now);
+
+    localStorage.setItem("saf_plant_stage", pendingStage);
+    localStorage.setItem("saf_plant_stage_updated_at", now);
+
+    setPendingStage(null);
+  }
 
   return (
     <main className="app-shell">
@@ -249,23 +373,23 @@ export default function App() {
           <div className="brand-mark">S</div>
           <div>
             <strong>SAF Climate</strong>
-            <span>Growbox AI Control</span>
+            <span>Growbox OS</span>
           </div>
         </div>
 
         <nav>
           <a className="active">Overview</a>
           <a>Climate</a>
-          <a>AI Insights</a>
+          <a>Grow Profile</a>
+          <a>Alerts</a>
           <a>Automation</a>
-          <a>History</a>
         </nav>
 
         <div className="device-mini">
-          <span className="online-dot"></span>
+          <span className={`online-dot ${freshness.online ? "on" : "off"}`}></span>
           <div>
             <strong>ESP32 Test Unit</strong>
-            <p>Cloud sync attivo</p>
+            <p>{freshness.label}</p>
           </div>
         </div>
       </aside>
@@ -276,7 +400,7 @@ export default function App() {
             <p className="eyebrow">Live Environment</p>
             <h1>Dashboard Growbox</h1>
             <p className="subtitle">
-              Ultimo aggiornamento: {lastUpdate}
+              Ultimo dato: {latest ? formatDate(latest.created_at) : "nessun dato"}
             </p>
           </div>
 
@@ -286,18 +410,20 @@ export default function App() {
           </div>
         </header>
 
-        <section className="stage-panel">
+        <section className="profile-panel">
           <div>
-            <h2>Fase pianta</h2>
-            <p>{plantStages[plantStage].note}</p>
+            <p className="eyebrow">Grow Profile</p>
+            <h2>{PLANT_STAGES[plantStage].label}</h2>
+            <p>{PLANT_STAGES[plantStage].description}</p>
+            <small>Profilo salvato · Ultima modifica: {formatDate(stageUpdatedAt)}</small>
           </div>
 
           <div className="stage-buttons">
-            {Object.entries(plantStages).map(([key, stage]) => (
+            {Object.entries(PLANT_STAGES).map(([key, stage]) => (
               <button
                 key={key}
                 className={plantStage === key ? "active" : ""}
-                onClick={() => setPlantStage(key)}
+                onClick={() => requestStageChange(key)}
               >
                 {stage.label}
               </button>
@@ -322,23 +448,33 @@ export default function App() {
                 <h2>{score}/100</h2>
                 <strong>{globalStatus.label}</strong>
                 <span>
-                  Valutazione basata sui target della fase{" "}
-                  {plantStages[plantStage].label}.
+                  Valutazione basata su fase {PLANT_STAGES[plantStage].label}.
                 </span>
               </div>
 
               <div className="ai-card">
                 <div className="section-title">
-                  <h2>AI Insights</h2>
-                  <span>Logic preview</span>
+                  <h2>Azioni consigliate</h2>
+                  <span>Smart logic</span>
                 </div>
 
                 <ul>
-                  {aiInsights.map((item) => (
+                  {recommendedActions.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
                 </ul>
               </div>
+            </section>
+
+            <section className="target-strip">
+              {metrics.map((metric) => (
+                <div key={metric.key}>
+                  <span>{metric.label}</span>
+                  <strong>
+                    {metric.ideal[0]}–{metric.ideal[1]} {metric.unit}
+                  </strong>
+                </div>
+              ))}
             </section>
 
             <section className="metric-grid">
@@ -357,13 +493,13 @@ export default function App() {
                 <div>
                   <h2>{activeMetricData.label}</h2>
                   <p>
-                    Target: {activeMetricData.ideal[0]}–
+                    Target reale profilo: {activeMetricData.ideal[0]}–
                     {activeMetricData.ideal[1]} {activeMetricData.unit}
                   </p>
                 </div>
 
                 <div className="range-buttons">
-                  {ranges.map(([value, label]) => (
+                  {TIME_RANGES.map(([value, label]) => (
                     <button
                       key={value}
                       className={timeRange === value ? "active" : ""}
@@ -379,26 +515,23 @@ export default function App() {
                 <ResponsiveContainer width="100%" height={340}>
                   <AreaChart
                     data={chartData}
-                    margin={{ top: 20, right: 18, left: -20, bottom: 8 }}
+                    margin={{ top: 20, right: 14, left: -22, bottom: 8 }}
                   >
                     <defs>
                       <linearGradient id="activeGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="5%"
-                          stopColor={activeMetricData.color}
-                          stopOpacity={0.45}
-                        />
-                        <stop
-                          offset="95%"
-                          stopColor={activeMetricData.color}
-                          stopOpacity={0}
-                        />
+                        <stop offset="5%" stopColor={activeMetricData.color} stopOpacity={0.45} />
+                        <stop offset="95%" stopColor={activeMetricData.color} stopOpacity={0} />
                       </linearGradient>
                     </defs>
+
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="time" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                    <XAxis dataKey="time" tick={{ fontSize: 11, fill: "#94a3b8" }} minTickGap={28} />
                     <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} />
                     <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1e293b" }} />
+
+                    <ReferenceLine y={activeMetricData.ideal[0]} stroke="#22c55e" strokeDasharray="4 4" />
+                    <ReferenceLine y={activeMetricData.ideal[1]} stroke="#22c55e" strokeDasharray="4 4" />
+
                     <Area
                       type="monotone"
                       dataKey={activeMetricData.key}
@@ -411,35 +544,50 @@ export default function App() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+
+              {activeMetricState && (
+                <div className={`chart-advice ${activeMetricState.state}`}>
+                  <strong>{activeMetricState.message}</strong>
+                  <span>
+                    Valore attuale: {activeMetricState.value.toFixed(2)} {activeMetricState.unit}
+                  </span>
+                </div>
+              )}
             </section>
 
             <section className="two-col">
               <section className="panel">
                 <div className="section-title">
                   <h2>Device Status</h2>
-                  <span>Live</span>
+                  <span>{freshness.label}</span>
                 </div>
 
                 <div className="status-list">
-                  <StatusRow label="ESP32" value="Online" state="good" />
+                  <StatusRow label="ESP32" value={freshness.online ? "Online" : "Offline"} state={freshness.online ? "good" : "danger"} />
                   <StatusRow label="Sensore DHT22" value="OK" state="good" />
                   <StatusRow label="Supabase Sync" value="Attivo" state="good" />
-                  <StatusRow label="Update rate" value="30 sec" state="info" />
+                  <StatusRow label="Ultimo update" value={freshness.ageSeconds ? `${freshness.ageSeconds}s fa` : "Live"} state="info" />
                 </div>
               </section>
 
               <section className="panel">
                 <div className="section-title">
-                  <h2>Automazioni</h2>
-                  <span>Preview</span>
+                  <h2>Eventi & Alert</h2>
+                  <button className="tiny-button" onClick={() => setShowEvents(!showEvents)}>
+                    {showEvents ? "Nascondi" : "Mostra"}
+                  </button>
                 </div>
 
-                <div className="automation-list">
-                  <Automation label="Umidificatore" active={latest.humidity < activeTarget("humidity", plantStage)[0]} />
-                  <Automation label="Estrattore" active={latest.temperature > activeTarget("temperature", plantStage)[1]} />
-                  <Automation label="Riscaldamento" active={latest.temperature < activeTarget("temperature", plantStage)[0]} />
-                  <Automation label="Allarme VPD" active={latest.vpd > activeTarget("vpd", plantStage)[1]} />
-                </div>
+                {showEvents && (
+                  <div className="event-list">
+                    {events.map((event, index) => (
+                      <article key={index} className={`event-card ${event.type}`}>
+                        <strong>{event.title}</strong>
+                        <p>{event.text}</p>
+                      </article>
+                    ))}
+                  </div>
+                )}
               </section>
             </section>
 
@@ -467,12 +615,31 @@ export default function App() {
           </>
         )}
       </section>
+
+      {pendingStage && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <p className="eyebrow">Conferma modifica</p>
+            <h2>Cambiare fase pianta?</h2>
+            <p>
+              Stai passando da <strong>{PLANT_STAGES[plantStage].label}</strong> a{" "}
+              <strong>{PLANT_STAGES[pendingStage].label}</strong>.
+            </p>
+            <p>
+              Questo cambierà target climatici, score, alert e azioni consigliate.
+            </p>
+
+            <div className="modal-actions">
+              <button onClick={() => setPendingStage(null)}>Annulla</button>
+              <button className="confirm" onClick={confirmStageChange}>
+                Conferma cambio fase
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
-}
-
-function activeTarget(key, stage) {
-  return plantStages[stage].targets[key];
 }
 
 function MetricCard({ metric, active, onClick }) {
@@ -503,17 +670,6 @@ function StatusRow({ label, value, state }) {
     <div className="status-row">
       <span>{label}</span>
       <strong className={state}>{value}</strong>
-    </div>
-  );
-}
-
-function Automation({ label, active }) {
-  return (
-    <div className="automation-row">
-      <span>{label}</span>
-      <div className={`toggle ${active ? "on" : ""}`}>
-        <i />
-      </div>
     </div>
   );
 }
