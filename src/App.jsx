@@ -21,44 +21,94 @@ const TIME_RANGES = [
 ];
 
 const PLANT_STAGES = {
-  clone: {
-    label: "Cloni",
-    description: "Radicazione e attecchimento. Umidità alta, VPD basso.",
+  seedlingClone: {
+    label: "Seedling / Clone",
+    description: "Target basato sulla fase Cloni del manuale Athena.",
     targets: {
-      temperature: [22, 26],
-      humidity: [70, 85],
-      vpd: [0.4, 0.8],
-      dew_point: [16, 22],
+      temperature: [23, 26],
+      humidity: [65, 75],
+      vpd: [0.8, 0.8],
+      dew_point: null,
+      ppfd: [100, 150],
+      co2: null,
+      ec: [2.0, 3.0],
+      ph: [5.6, 6.0],
+      photoperiod: "24h luce",
     },
   },
   veg: {
     label: "Vegetativa",
-    description: "Crescita attiva. Equilibrio tra temperatura, umidità e VPD.",
+    description: "Crescita attiva: VPD basso-medio e ambiente stabile.",
     targets: {
-      temperature: [22, 27],
-      humidity: [55, 70],
-      vpd: [0.8, 1.2],
-      dew_point: [14, 20],
+      temperature: [22, 28],
+      humidity: [58, 75],
+      vpd: [0.8, 1.0],
+      dew_point: null,
+      ppfd: [300, 600],
+      co2: null,
+      ec: [3.0, 3.0],
+      ph: [5.6, 6.0],
+      photoperiod: "18h luce / 6h buio",
     },
   },
-  earlyFlower: {
-    label: "Fioritura iniziale",
-    description: "Riduzione umidità e controllo traspirazione.",
+  flowerStretch: {
+    label: "Fioritura Stretch",
+    description: "Settimana 1-3: allungamento e transizione in fiore.",
     targets: {
-      temperature: [21, 26],
-      humidity: [45, 60],
-      vpd: [1.0, 1.4],
-      dew_point: [12, 18],
+      temperature: [25, 28],
+      humidity: [60, 72],
+      vpd: [1.0, 1.2],
+      dew_point: null,
+      ppfd: [600, 1000],
+      co2: [1200, 1500],
+      ec: [3.0, 3.0],
+      ph: [5.8, 6.2],
+      photoperiod: "12h luce / 12h buio",
     },
   },
-  lateFlower: {
-    label: "Fioritura finale",
-    description: "Umidità più bassa. Massima attenzione a muffe e condensa.",
+  flowerBulk: {
+    label: "Fioritura Bulk",
+    description: "Settimana 4-7: ingrossamento fiore e massima spinta.",
     targets: {
-      temperature: [20, 25],
-      humidity: [40, 50],
-      vpd: [1.2, 1.6],
-      dew_point: [10, 16],
+      temperature: [24, 26],
+      humidity: [60, 70],
+      vpd: [1.0, 1.2],
+      dew_point: null,
+      ppfd: [850, 1200],
+      co2: [1200, 1500],
+      ec: [3.0, 3.0],
+      ph: [6.0, 6.2],
+      photoperiod: "12h luce / 12h buio",
+    },
+  },
+  flowerFinish: {
+    label: "Finitura",
+    description: "Settimana 8-9: umidità più bassa e controllo muffe.",
+    targets: {
+      temperature: [18, 24],
+      humidity: [50, 60],
+      vpd: [1.2, 1.4],
+      dew_point: null,
+      ppfd: [600, 900],
+      co2: [500, 800],
+      ec: [2.0, 3.0],
+      ph: [6.0, 6.2],
+      photoperiod: "12h luce / 12h buio",
+    },
+  },
+  dryCure: {
+    label: "Dry / Cure",
+    description: "Asciugatura e cura: focus su temperatura e umidità.",
+    targets: {
+      temperature: [15, 18],
+      humidity: [55, 60],
+      vpd: null,
+      dew_point: null,
+      ppfd: null,
+      co2: null,
+      ec: null,
+      ph: null,
+      photoperiod: "24h buio",
     },
   },
 };
@@ -137,6 +187,41 @@ function getFreshness(latest) {
   }
 
   return { online: true, label: "Online", ageSeconds };
+}
+
+function formatTarget(target, unit) {
+  if (!target) return "Non previsto";
+  if (target[0] === target[1]) return `${target[0]} ${unit}`;
+  return `${target[0]}–${target[1]} ${unit}`;
+}
+
+function getChartDomain(data, key, target) {
+  const values = data
+    .map((row) => Number(row[key]))
+    .filter((value) => Number.isFinite(value));
+
+  if (target) {
+    values.push(Number(target[0]));
+    values.push(Number(target[1]));
+  }
+
+  if (values.length === 0) return ["auto", "auto"];
+
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+
+  if (min === max) {
+    const fixedPadding = key === "vpd" ? 0.15 : 2;
+    return [min - fixedPadding, max + fixedPadding];
+  }
+
+  const range = max - min;
+  const padding = Math.max(range * 0.18, key === "vpd" ? 0.08 : 0.8);
+
+  return [
+    Number((min - padding).toFixed(2)),
+    Number((max + padding).toFixed(2)),
+  ];
 }
 
 export default function App() {
@@ -225,6 +310,17 @@ export default function App() {
 
     return metrics.map((metric) => {
       const value = Number(latest[metric.key]);
+
+      if (!metric.ideal) {
+        return {
+          ...metric,
+          value,
+          state: "info",
+          message: "Solo monitoraggio",
+          direction: "info",
+        };
+      }
+
       const [min, max] = metric.ideal;
 
       if (value < min) {
@@ -259,8 +355,12 @@ export default function App() {
 
   const score = useMemo(() => {
     if (!latest || !freshness.online) return 0;
-    const good = metricStates.filter((m) => m.state === "good").length;
-    return Math.round((good / metricStates.length) * 100);
+
+    const targetMetrics = metricStates.filter((m) => m.ideal);
+    if (targetMetrics.length === 0) return 0;
+
+    const good = targetMetrics.filter((m) => m.state === "good").length;
+    return Math.round((good / targetMetrics.length) * 100);
   }, [latest, metricStates, freshness.online]);
 
   const globalStatus = useMemo(() => {
@@ -276,6 +376,11 @@ export default function App() {
   const activeMetricState =
     metricStates.find((metric) => metric.key === activeMetric) || null;
 
+  const yDomain = useMemo(
+    () => getChartDomain(chartData, activeMetricData.key, activeMetricData.ideal),
+    [chartData, activeMetricData]
+  );
+
   const recommendedActions = useMemo(() => {
     if (!latest) return ["In attesa dei dati dal dispositivo."];
 
@@ -288,7 +393,7 @@ export default function App() {
     }
 
     const actions = metricStates
-      .filter((m) => m.state !== "good")
+      .filter((m) => m.ideal && m.state !== "good")
       .map((m) => {
         if (m.key === "humidity" && m.direction === "low") {
           return "Aumenta umidità: attiva umidificatore o riduci estrazione.";
@@ -307,9 +412,6 @@ export default function App() {
         }
         if (m.key === "vpd" && m.direction === "high") {
           return "VPD alto: aumenta umidità o abbassa temperatura.";
-        }
-        if (m.key === "dew_point" && m.direction === "high") {
-          return "Dew point alto: aumenta ricambio aria per ridurre rischio condensa.";
         }
 
         return `${m.label}: ${m.message}.`;
@@ -340,11 +442,11 @@ export default function App() {
     }
 
     metricStates.forEach((m) => {
-      if (m.state !== "good") {
+      if (m.ideal && m.state !== "good") {
         list.push({
           type: m.state,
           title: `${m.label}: ${m.message}`,
-          text: `${m.value.toFixed(2)} ${m.unit} · Target ${m.ideal[0]}–${m.ideal[1]} ${m.unit}`,
+          text: `${m.value.toFixed(2)} ${m.unit} · Target ${formatTarget(m.ideal, m.unit)}`,
         });
       }
     });
@@ -353,7 +455,7 @@ export default function App() {
       list.push({
         type: "good",
         title: "Ambiente stabile",
-        text: "Tutti i valori sono nel target della fase selezionata.",
+        text: "Tutti i valori misurati con target sono nel range della fase selezionata.",
       });
     }
 
@@ -483,11 +585,32 @@ export default function App() {
               {metrics.map((metric) => (
                 <div key={metric.key}>
                   <span>{metric.label}</span>
-                  <strong>
-                    {metric.ideal[0]}–{metric.ideal[1]} {metric.unit}
-                  </strong>
+                  <strong>{formatTarget(metric.ideal, metric.unit)}</strong>
                 </div>
               ))}
+            </section>
+
+            <section className="extra-targets">
+              <div>
+                <span>PPFD</span>
+                <strong>{formatTarget(PLANT_STAGES[plantStage].targets.ppfd, "")}</strong>
+              </div>
+              <div>
+                <span>CO₂</span>
+                <strong>{formatTarget(PLANT_STAGES[plantStage].targets.co2, "ppm")}</strong>
+              </div>
+              <div>
+                <span>EC</span>
+                <strong>{formatTarget(PLANT_STAGES[plantStage].targets.ec, "")}</strong>
+              </div>
+              <div>
+                <span>pH</span>
+                <strong>{formatTarget(PLANT_STAGES[plantStage].targets.ph, "")}</strong>
+              </div>
+              <div>
+                <span>Fotoperiodo</span>
+                <strong>{PLANT_STAGES[plantStage].targets.photoperiod}</strong>
+              </div>
             </section>
 
             <section className="metric-grid">
@@ -506,8 +629,7 @@ export default function App() {
                 <div>
                   <h2>{activeMetricData.label}</h2>
                   <p>
-                    Target reale profilo: {activeMetricData.ideal[0]}–
-                    {activeMetricData.ideal[1]} {activeMetricData.unit}
+                    Target profilo: {formatTarget(activeMetricData.ideal, activeMetricData.unit)}
                   </p>
                 </div>
 
@@ -539,7 +661,11 @@ export default function App() {
 
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                     <XAxis dataKey="time" tick={{ fontSize: 11, fill: "var(--muted)" }} minTickGap={28} />
-                    <YAxis tick={{ fontSize: 11, fill: "var(--muted)" }} />
+                    <YAxis
+                      domain={yDomain}
+                      tick={{ fontSize: 11, fill: "var(--muted)" }}
+                      allowDataOverflow={false}
+                    />
 
                     <Tooltip
                       contentStyle={{
@@ -551,8 +677,12 @@ export default function App() {
                       labelStyle={{ color: "var(--text)" }}
                     />
 
-                    <ReferenceLine y={activeMetricData.ideal[0]} stroke="var(--green)" strokeDasharray="4 4" />
-                    <ReferenceLine y={activeMetricData.ideal[1]} stroke="var(--green)" strokeDasharray="4 4" />
+                    {activeMetricData.ideal && (
+                      <>
+                        <ReferenceLine y={activeMetricData.ideal[0]} stroke="var(--green)" strokeDasharray="4 4" />
+                        <ReferenceLine y={activeMetricData.ideal[1]} stroke="var(--green)" strokeDasharray="4 4" />
+                      </>
+                    )}
 
                     <Area
                       type="monotone"
@@ -681,7 +811,7 @@ function MetricCard({ metric, active, onClick }) {
       </div>
 
       <small>
-        Target: {metric.ideal[0]}–{metric.ideal[1]} {metric.unit}
+        Target: {formatTarget(metric.ideal, metric.unit)}
       </small>
     </button>
   );
