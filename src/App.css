@@ -107,6 +107,7 @@ nav a {
   color: var(--muted);
   padding: 12px 14px;
   border-radius: 14px;
+  text-decoration: none;
 }
 
 nav a.active {
@@ -305,17 +306,6 @@ h3 {
   overflow: hidden;
 }
 
-.health-card::after {
-  content: "";
-  position: absolute;
-  inset: auto -30px -70px auto;
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--green) 20%, transparent);
-  filter: blur(10px);
-}
-
 .health-card p {
   margin: 0;
   color: var(--muted);
@@ -354,7 +344,7 @@ h3 {
 
 .target-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -375,51 +365,6 @@ h3 {
 .target-strip strong {
   display: block;
   margin-top: 4px;
-}
-
-.extra-targets {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.extra-targets div {
-  padding: 13px;
-  border-radius: 18px;
-  border: 1px solid var(--border);
-  background: var(--soft-card);
-}
-
-.extra-targets span {
-  display: block;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.extra-targets strong {
-  display: block;
-  margin-top: 4px;
-}
-
-.metric-card.info {
-  opacity: 0.85;
-}
-
-.metric-action.info {
-  background: color-mix(in srgb, var(--blue) 14%, transparent);
-  color: var(--blue);
-}
-
-.chart-advice.info {
-  background: color-mix(in srgb, var(--blue) 14%, transparent);
-  color: var(--blue);
-}
-
-@media (max-width: 960px) {
-  .extra-targets {
-    grid-template-columns: 1fr;
-  }
 }
 
 .metric-grid {
@@ -457,6 +402,10 @@ h3 {
   color: var(--muted);
 }
 
+.metric-card.info {
+  opacity: 0.85;
+}
+
 .metric-dot {
   width: 11px;
   height: 11px;
@@ -484,6 +433,11 @@ h3 {
 .metric-action.danger {
   background: color-mix(in srgb, var(--red) 18%, transparent);
   color: var(--red);
+}
+
+.metric-action.info {
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+  color: var(--blue);
 }
 
 .panel {
@@ -519,6 +473,11 @@ h3 {
 .chart-advice.danger {
   background: color-mix(in srgb, var(--red) 14%, transparent);
   color: var(--red);
+}
+
+.chart-advice.info {
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+  color: var(--blue);
 }
 
 .two-col {
@@ -706,10 +665,6 @@ h3 {
     font-size: 32px;
   }
 
-  .profile-panel {
-    border-radius: 20px;
-  }
-
   .stage-buttons,
   .range-buttons {
     display: grid;
@@ -727,10 +682,6 @@ h3 {
   .metric-grid,
   .target-strip {
     grid-template-columns: 1fr;
-  }
-
-  .health-card h2 {
-    font-size: 52px;
   }
 
   .main-chart {
