@@ -102,12 +102,8 @@ const METRICS_BASE = [
   },
 ];
 
-function getStoredStage() {
-  return localStorage.getItem("saf_plant_stage") || "veg";
-}
-
-function getStoredStageUpdatedAt() {
-  return localStorage.getItem("saf_plant_stage_updated_at") || null;
+function getStoredValue(key, fallback) {
+  return localStorage.getItem(key) || fallback;
 }
 
 function formatDate(value) {
@@ -145,11 +141,19 @@ function getFreshness(latest) {
 
 export default function App() {
   const [readings, setReadings] = useState([]);
-  const [timeRange, setTimeRange] = useState("1h");
-  const [plantStage, setPlantStage] = useState(getStoredStage);
-  const [stageUpdatedAt, setStageUpdatedAt] = useState(getStoredStageUpdatedAt);
+  const [timeRange, setTimeRange] = useState(() =>
+    getStoredValue("saf_time_range", "1h")
+  );
+  const [plantStage, setPlantStage] = useState(() =>
+    getStoredValue("saf_plant_stage", "veg")
+  );
+  const [stageUpdatedAt, setStageUpdatedAt] = useState(() =>
+    localStorage.getItem("saf_plant_stage_updated_at")
+  );
+  const [activeMetric, setActiveMetric] = useState(() =>
+    getStoredValue("saf_active_metric", "vpd")
+  );
   const [pendingStage, setPendingStage] = useState(null);
-  const [activeMetric, setActiveMetric] = useState("vpd");
   const [showLogs, setShowLogs] = useState(false);
   const [showEvents, setShowEvents] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -192,6 +196,14 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, [timeRange]);
+
+  useEffect(() => {
+    localStorage.setItem("saf_time_range", timeRange);
+  }, [timeRange]);
+
+  useEffect(() => {
+    localStorage.setItem("saf_active_metric", activeMetric);
+  }, [activeMetric]);
 
   const latest = readings[readings.length - 1];
   const freshness = getFreshness(latest);
@@ -285,7 +297,7 @@ export default function App() {
           return "Abbassa umidità: aumenta estrazione o deumidificazione.";
         }
         if (m.key === "temperature" && m.direction === "low") {
-          return "Aumenta temperatura: valuta tappetino, riscaldatore o minore estrazione.";
+          return "Aumenta temperatura: valuta riscaldatore o minore estrazione.";
         }
         if (m.key === "temperature" && m.direction === "high") {
           return "Abbassa temperatura: aumenta ventilazione o riduci calore lampada.";
@@ -299,6 +311,7 @@ export default function App() {
         if (m.key === "dew_point" && m.direction === "high") {
           return "Dew point alto: aumenta ricambio aria per ridurre rischio condensa.";
         }
+
         return `${m.label}: ${m.message}.`;
       });
 
@@ -524,13 +537,22 @@ export default function App() {
                       </linearGradient>
                     </defs>
 
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
-                    <XAxis dataKey="time" tick={{ fontSize: 11, fill: "#94a3b8" }} minTickGap={28} />
-                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                    <Tooltip contentStyle={{ background: "#020617", border: "1px solid #1e293b" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="time" tick={{ fontSize: 11, fill: "var(--muted)" }} minTickGap={28} />
+                    <YAxis tick={{ fontSize: 11, fill: "var(--muted)" }} />
 
-                    <ReferenceLine y={activeMetricData.ideal[0]} stroke="#22c55e" strokeDasharray="4 4" />
-                    <ReferenceLine y={activeMetricData.ideal[1]} stroke="#22c55e" strokeDasharray="4 4" />
+                    <Tooltip
+                      contentStyle={{
+                        background: "var(--tooltip-bg)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                        borderRadius: "12px",
+                      }}
+                      labelStyle={{ color: "var(--text)" }}
+                    />
+
+                    <ReferenceLine y={activeMetricData.ideal[0]} stroke="var(--green)" strokeDasharray="4 4" />
+                    <ReferenceLine y={activeMetricData.ideal[1]} stroke="var(--green)" strokeDasharray="4 4" />
 
                     <Area
                       type="monotone"

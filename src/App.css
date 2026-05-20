@@ -3,23 +3,48 @@
 }
 
 :root {
-  --bg: #020617;
-  --panel: rgba(15, 23, 42, 0.82);
-  --panel-solid: #0f172a;
-  --border: rgba(148, 163, 184, 0.16);
-  --text: #f8fafc;
-  --muted: #94a3b8;
-  --green: #22c55e;
-  --yellow: #f59e0b;
-  --red: #ef4444;
-  --blue: #38bdf8;
+  color-scheme: light;
+
+  --bg: #eef3ef;
+  --panel: rgba(255, 255, 255, 0.9);
+  --panel-solid: #ffffff;
+  --border: rgba(15, 23, 42, 0.13);
+  --text: #102018;
+  --muted: #607166;
+  --green: #16a34a;
+  --yellow: #d97706;
+  --red: #dc2626;
+  --blue: #0284c7;
+  --tooltip-bg: #ffffff;
+  --chart-grid: rgba(15, 23, 42, 0.12);
+  --soft-card: rgba(15, 23, 42, 0.045);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --bg: #020617;
+    --panel: rgba(15, 23, 42, 0.82);
+    --panel-solid: #0f172a;
+    --border: rgba(148, 163, 184, 0.16);
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --green: #22c55e;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --blue: #38bdf8;
+    --tooltip-bg: #020617;
+    --chart-grid: rgba(255, 255, 255, 0.08);
+    --soft-card: rgba(255, 255, 255, 0.05);
+  }
 }
 
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), transparent 34%),
-    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 30%),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--green) 18%, transparent), transparent 34%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--blue) 12%, transparent), transparent 30%),
     var(--bg);
   color: var(--text);
   font-family: Inter, Arial, sans-serif;
@@ -41,7 +66,7 @@ button {
   height: 100vh;
   padding: 24px;
   border-right: 1px solid var(--border);
-  background: rgba(2, 6, 23, 0.78);
+  background: color-mix(in srgb, var(--panel-solid) 84%, transparent);
   backdrop-filter: blur(16px);
 }
 
@@ -85,7 +110,7 @@ nav a {
 }
 
 nav a.active {
-  background: rgba(34, 197, 94, 0.12);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
   color: var(--text);
 }
 
@@ -98,7 +123,7 @@ nav a.active {
   gap: 10px;
   padding: 14px;
   border-radius: 18px;
-  background: rgba(15, 23, 42, 0.9);
+  background: var(--soft-card);
   border: 1px solid var(--border);
 }
 
@@ -184,7 +209,7 @@ h3 {
   color: var(--text);
   padding: 12px 16px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.9);
+  background: var(--panel);
   border: 1px solid var(--border);
   font-weight: 900;
 }
@@ -215,7 +240,7 @@ h3 {
   border: 1px solid var(--border);
   background: var(--panel);
   border-radius: 26px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.12);
 }
 
 .profile-panel {
@@ -233,7 +258,7 @@ h3 {
 }
 
 .profile-panel small {
-  color: #cbd5e1;
+  color: var(--muted);
 }
 
 .stage-buttons,
@@ -249,7 +274,7 @@ h3 {
 .tiny-button {
   border: 1px solid var(--border);
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--soft-card);
   padding: 10px 13px;
   border-radius: 999px;
   cursor: pointer;
@@ -287,7 +312,7 @@ h3 {
   width: 180px;
   height: 180px;
   border-radius: 50%;
-  background: rgba(34, 197, 94, 0.18);
+  background: color-mix(in srgb, var(--green) 20%, transparent);
   filter: blur(10px);
 }
 
@@ -323,8 +348,8 @@ h3 {
   list-style: none;
   padding: 12px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  color: #dbeafe;
+  background: var(--soft-card);
+  color: var(--text);
 }
 
 .target-strip {
@@ -338,7 +363,7 @@ h3 {
   padding: 13px;
   border-radius: 18px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--soft-card);
 }
 
 .target-strip span {
@@ -368,7 +393,7 @@ h3 {
 }
 
 .metric-card.active {
-  border-color: rgba(34, 197, 94, 0.7);
+  border-color: color-mix(in srgb, var(--green) 70%, transparent);
   transform: translateY(-2px);
 }
 
@@ -402,18 +427,18 @@ h3 {
 }
 
 .metric-action.good {
-  background: rgba(34, 197, 94, 0.16);
-  color: #86efac;
+  background: color-mix(in srgb, var(--green) 18%, transparent);
+  color: var(--green);
 }
 
 .metric-action.warning {
-  background: rgba(245, 158, 11, 0.16);
-  color: #fcd34d;
+  background: color-mix(in srgb, var(--yellow) 18%, transparent);
+  color: var(--yellow);
 }
 
 .metric-action.danger {
-  background: rgba(239, 68, 68, 0.16);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+  color: var(--red);
 }
 
 .panel {
@@ -437,18 +462,18 @@ h3 {
 }
 
 .chart-advice.good {
-  background: rgba(34, 197, 94, 0.12);
-  color: #86efac;
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  color: var(--green);
 }
 
 .chart-advice.warning {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fcd34d;
+  background: color-mix(in srgb, var(--yellow) 14%, transparent);
+  color: var(--yellow);
 }
 
 .chart-advice.danger {
-  background: rgba(239, 68, 68, 0.12);
-  color: #fca5a5;
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
 }
 
 .two-col {
@@ -467,7 +492,7 @@ h3 {
 .status-row {
   padding: 12px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--soft-card);
 }
 
 .status-row span {
@@ -475,21 +500,21 @@ h3 {
 }
 
 .status-row .good {
-  color: #86efac;
+  color: var(--green);
 }
 
 .status-row .danger {
-  color: #fca5a5;
+  color: var(--red);
 }
 
 .status-row .info {
-  color: #93c5fd;
+  color: var(--blue);
 }
 
 .event-card {
   padding: 13px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--soft-card);
   border: 1px solid var(--border);
 }
 
@@ -498,15 +523,15 @@ h3 {
 }
 
 .event-card.good {
-  border-color: rgba(34, 197, 94, 0.35);
+  border-color: color-mix(in srgb, var(--green) 35%, transparent);
 }
 
 .event-card.warning {
-  border-color: rgba(245, 158, 11, 0.35);
+  border-color: color-mix(in srgb, var(--yellow) 35%, transparent);
 }
 
 .event-card.danger {
-  border-color: rgba(239, 68, 68, 0.35);
+  border-color: color-mix(in srgb, var(--red) 35%, transparent);
 }
 
 .log-toggle {
@@ -522,7 +547,7 @@ h3 {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--soft-card);
   border-radius: 16px;
   padding: 14px;
 }
@@ -535,7 +560,7 @@ h3 {
 
 .reading-card span {
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--panel);
   padding: 6px 10px;
   font-size: 13px;
 }
@@ -551,7 +576,7 @@ h3 {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.82);
+  background: rgba(2, 6, 23, 0.72);
   backdrop-filter: blur(10px);
   display: grid;
   place-items: center;
@@ -566,7 +591,7 @@ h3 {
   border: 1px solid var(--border);
   border-radius: 26px;
   padding: 24px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
 }
 
 .modal p {
@@ -587,7 +612,7 @@ h3 {
 .modal-actions button {
   border: 1px solid var(--border);
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--soft-card);
   padding: 11px 14px;
   border-radius: 999px;
   cursor: pointer;
