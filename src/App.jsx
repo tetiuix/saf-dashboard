@@ -23,20 +23,22 @@ const TIME_RANGES = [
 const PLANT_STAGES = {
   seedlingClone: {
     label: "Seedling / Clone",
-    description: "Target basato sulla fase Cloni del manuale Athena.",
+    description: "Target basato sulla fase cloni del manuale Athena.",
     targets: {
       temperature: [23, 26],
       humidity: [65, 75],
       vpd: [0.8, 0.8],
+      dew_point: null,
     },
   },
   veg: {
     label: "Vegetativa",
-    description: "Crescita attiva, clima stabile e VPD basso-medio.",
+    description: "Crescita attiva: clima stabile e VPD basso-medio.",
     targets: {
       temperature: [22, 28],
       humidity: [58, 75],
       vpd: [0.8, 1.0],
+      dew_point: null,
     },
   },
   flowerStretch: {
@@ -46,6 +48,7 @@ const PLANT_STAGES = {
       temperature: [25, 28],
       humidity: [60, 72],
       vpd: [1.0, 1.2],
+      dew_point: null,
     },
   },
   flowerBulk: {
@@ -55,6 +58,7 @@ const PLANT_STAGES = {
       temperature: [24, 26],
       humidity: [60, 70],
       vpd: [1.0, 1.2],
+      dew_point: null,
     },
   },
   flowerFinish: {
@@ -64,6 +68,7 @@ const PLANT_STAGES = {
       temperature: [18, 24],
       humidity: [50, 60],
       vpd: [1.2, 1.4],
+      dew_point: null,
     },
   },
   dryCure: {
@@ -73,6 +78,7 @@ const PLANT_STAGES = {
       temperature: [15, 18],
       humidity: [55, 60],
       vpd: null,
+      dew_point: null,
     },
   },
 };
@@ -107,8 +113,8 @@ const METRICS = [
     label: "Dew Point",
     unit: "°C",
     color: "#a78bfa",
-    lowText: "Punto rugiada basso",
-    highText: "Rischio condensa",
+    lowText: "Dew point basso",
+    highText: "Dew point alto",
   },
 ];
 
@@ -119,7 +125,7 @@ function getStoredStage() {
 
 function getStoredMetric() {
   const saved = localStorage.getItem("saf_active_metric");
-  return METRICS.some((m) => m.key === saved) ? saved : "vpd";
+  return METRICS.some((metric) => metric.key === saved) ? saved : "vpd";
 }
 
 function getStoredRange() {
@@ -173,8 +179,8 @@ function getChartDomain(data, key, target) {
 
   if (values.length === 0) return ["auto", "auto"];
 
-  let min = Math.min(...values);
-  let max = Math.max(...values);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
 
   if (min === max) {
     const padding = key === "vpd" ? 0.15 : 2;
@@ -331,9 +337,12 @@ export default function App() {
   }, [latest, freshness.online, metricStates]);
 
   const globalStatus = useMemo(() => {
-    if (!latest || !freshness.online) return { label: "Offline", className: "danger" };
+    if (!latest || !freshness.online)
+      return { label: "Offline", className: "danger" };
+
     if (score >= 90) return { label: "Ottimale", className: "good" };
     if (score >= 60) return { label: "Da regolare", className: "warning" };
+
     return { label: "Critico", className: "danger" };
   }, [latest, freshness.online, score]);
 
